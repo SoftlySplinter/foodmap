@@ -1,0 +1,11 @@
+{
+  "name": "foodmap",
+  "description": "A hygene map of the U.K.",
+  "author": "Alexander Brown <alex@alexanderdbrown.com>",
+  "dependencies": {
+    "rethinkdb": "1.11.x",
+    "request": "2.33.x"
+  },
+  "engine": "node >= 0.10.13",
+  "private": "true"
+}
