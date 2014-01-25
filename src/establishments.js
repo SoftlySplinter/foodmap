@@ -1,43 +1,31 @@
 var request = require('request');
 var fs = require('fs');
+var r = require('rethinkdb');
 
 function Map() {
   this.establishments = {};
-  this._cache = this.loadCache();
-  this.load();
+  this.load(1);
 }
 
-Map.prototype.loadCache = function() {
-  var self = this;
-  fs.readdir('.cache', function(err, files) {
-    if(err) throw err;
-    for(var i = 0; i < files.length; i++) {
-      fs.readFile('.cache/' + files[i], function(err, data) {
-        self.add(new Establishment(JSON.parse(data)));
-      });
-    }
-  });
-}
-
-Map.prototype.load = function() {
+Map.prototype.load = function(page) {
   console.log('Loading Establishments...');
   var self = this;
   var req = {
-    url: 'http://api.ratings.food.gov.uk/establishments/basic/',
+    url: 'http://api.ratings.food.gov.uk/establishments/basic/1000/' + page,
     headers: {
       'x-api-version': '2',
       'accept': 'application/json',
     },
   };
   request.get(req, function(error, resp, body) {
-    var est = JSON.parse(body).establishments;
+    var json = JSON.parse(body);
+    var meta = json.meta;
+    var est = json.establishments;
     for(var i =  0; i < est.length; i++) {
-      var id = est[i].FHRSID;
-      if( self.establishments[id] != undefined ) {
-        console.log(id + ' already cached');
-        continue;
-      }
-      self.loadEst(est[i].FHRSID);
+      Establishment.exists(est[i].FHRSID, self);
+    }
+    if( meta.totalPages > page ) {
+      self.load(page + 1);
     }
   });
 }
@@ -50,21 +38,6 @@ Map.prototype.add = function(est) {
 var map = new Map();
 
 Map.prototype.loadEst = function(id) {
-  console.log("Loading Establishment " + id);
-  var req = {
-    url: 'http://api.ratings.food.gov.uk/establishments/' + id,
-    headers: {
-      'x-api-version': '2',
-      'accept': 'application/json',
-    },
-  };
-  var self = this;
-  request(req, function(error, resp, body) {
-    var info = JSON.parse(body);
-    var est = new Establishment(info);
-    est.cache();
-    self.add(est);
-  });
 }
 
 function Establishment(info) {
@@ -73,14 +46,61 @@ function Establishment(info) {
   this.location = info.geocode;
 
   this.data = info;
-  this.cacheDate = info.cacheDate || Date.now();
+}
+
+Establishment.exists = function(id, map) {
+  var res = undefined;
+  r.connect({}, function(err, conn) {
+    if(err) throw err;
+    r.db('foodmap').table('establishments').get(id).run(conn, function(err,
+result) {
+      if(err) throw err;
+      conn.close();
+      if(result == null) {
+        console.log('Est ' + id + ' needs creating');
+        Establishment.create(id, map);
+      }
+      else {
+        console.log('Est ' + id + ' already cached');
+      }
+    });
+  });
+}
+
+Establishment.create = function(id, map) {
+  console.log("Loading Establishment " + id);
+  var req = {
+    url: 'http://api.ratings.food.gov.uk/establishments/' + id,
+    headers: {
+      'x-api-version': '2',
+      'accept': 'application/json',
+    },
+  };
+  request(req, function(error, resp, body) {
+    var info = JSON.parse(body);
+    var est = new Establishment(info);
+    est.cache();
+    map.add(est);
+  });
 }
 
 Establishment.prototype.toString = function() {
   return this.id + ': ' +this.name + ' (last cached: ' + this.cacheDate + ')';
 }
 
+Establishment.prototype.shouldCache = function() {
+  return this.data.cacheDate != undefined;
+}
+
 Establishment.prototype.cache = function() {
-  // TODO cache to a DB.
+  this.data.cacheDate = Date.now();
+  var self = this;
+  r.connect({}, function(err, conn) {
+    if(err) throw err;
+    r.db('foodmap').table('establishments').insert(self.data).run(conn, function(err, result) {
+      if(err) throw err;
+      conn.close();
+    });
+  });
 }
 
