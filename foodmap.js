@@ -1,48 +1,34 @@
-var request = require('request')
+var express = require('express');
+var app = express();
+var r = require('rethinkdb');
 
-var url = 'http://api.ratings.food.gov.uk';
-var headers = {
-  headers: {
-    'x-api-version': '2',
-    'accept': 'application/json'
-  }
-};
-
-var page = 1;
-var max_page = 2;
-var establishments = []
-
-var req = {
-  url: url + '/establishments/basic/',
-  headers: {
-    'x-api-version': '2',
-    'accept': 'application/json'
-  }
-}
-request(req, function(error, response, body) {
-  if(error) console.log('Error: ' + error);
-  if(response.statusCode == 200) {
-    var info = JSON.parse(body);
-    max_page = info.meta.totalPages;
-    for(var i = 0; i < info.establishments.length; i++) {
-      var est = info.establishments[i];
-      var est_req = {
-        url: url + '/establishments/' + est.FHRSID,
-        headers: {
-          'x-api-version': '2',
-          'accept': 'application/json'
-        }
+app.get("/data", function(req, res) {
+  r.connect({}, function(err, conn) {
+    if(err) {
+      res.writeHead(500);
+      res.end(err.toString());
+      return;  
+    }
+    r.db('foodmap').table('establishments').run(conn, function(err, cursor) {
+      if(err) {
+        res.writeHead(500);
+        res.end(err.toString());
+        return;
       }
-      request(est_req, function(error, resp, body) {
-        if(error) console.log('Error: ' + error);
-        if(response.statusCode == 200) {
-          var est_info = JSON.parse(body);
-          console.log(est_info);
+      var arr = []
+      cursor.each(function(err, result) {
+        if(result != undefined) arr.push(result);
+        if(!cursor.hasNext()) {
+          var str = JSON.stringify(arr);
+          res.writeHead(200, {'Content-Type': 'application/json',
+                              'Content-Length': str.length});
+          res.end(str);
         }
       });
-    }
-  } else {
-    console.log(response);
-  }
-});
+    });
+    conn.close();
+  });
+})
+app.listen(8000, '127.0.0.1');
+
 
