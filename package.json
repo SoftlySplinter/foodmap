@@ -5,7 +5,8 @@
   "dependencies": {
     "rethinkdb": "1.11.x",
     "request": "2.33.x",
-    "express": "3.4.x"
+    "express": "3.4.x",
+    "optimist": "0.6.x"
   },
   "engine": "node >= 0.10.13",
   "private": "true"

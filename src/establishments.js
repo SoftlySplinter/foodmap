@@ -7,8 +7,13 @@ function Map() {
   this.load(1);
 }
 
+/**
+ * Recusrsive function which loads all pages from the specified page to the end
+ * of the API result.
+ *
+ * Will stop on an error, but will not die.
+ */
 Map.prototype.load = function(page) {
-  console.log('Loading Establishments...');
   var self = this;
   var req = {
     url: 'http://api.ratings.food.gov.uk/establishments/basic/1000/' + page,
@@ -18,14 +23,17 @@ Map.prototype.load = function(page) {
     },
   };
   request.get(req, function(error, resp, body) {
-    var json = JSON.parse(body);
-    var meta = json.meta;
-    var est = json.establishments;
-    for(var i =  0; i < est.length; i++) {
-      Establishment.exists(est[i].FHRSID, self);
-    }
-    if( meta.totalPages > page ) {
-      self.load(page + 1);
+    if(error) console.log(error);
+    else {
+      var json = JSON.parse(body);
+      var meta = json.meta;
+      var est = json.establishments;
+      for(var i =  0; i < est.length; i++) {
+        Establishment.exists(est[i].FHRSID, self);
+      }
+      if( meta.totalPages > page ) {
+        self.load(page + 1);
+      }
     }
   });
 }
@@ -36,9 +44,6 @@ Map.prototype.add = function(est) {
 };
 
 var map = new Map();
-
-Map.prototype.loadEst = function(id) {
-}
 
 function Establishment(info) {
   this.id = info.FHRSID;
@@ -57,18 +62,20 @@ result) {
       if(err) throw err;
       conn.close();
       if(result == null) {
-        console.log('Est ' + id + ' needs creating');
+        console.log('Est %s needs creating', id);
         Establishment.create(id, map);
-      }
-      else {
-        console.log('Est ' + id + ' already cached');
+      } else {
+        var cached = new Date(result.cacheDate);
+        if (cached.day < new Date().day + 7) {
+          console.log("%s is a week old, recacheing", id);
+          Establishment.create(id, map);
+        }
       }
     });
   });
 }
 
 Establishment.create = function(id, map) {
-  console.log("Loading Establishment " + id);
   var req = {
     url: 'http://api.ratings.food.gov.uk/establishments/' + id,
     headers: {
@@ -77,10 +84,14 @@ Establishment.create = function(id, map) {
     },
   };
   request(req, function(error, resp, body) {
-    var info = JSON.parse(body);
-    var est = new Establishment(info);
-    est.cache();
-    map.add(est);
+    if(error) {
+      console.log("Error getting %s: %s", id, error);
+    } else {
+      var info = JSON.parse(body);
+      var est = new Establishment(info);
+      est.cache();
+      map.add(est);
+    }
   });
 }
 
@@ -98,7 +109,11 @@ Establishment.prototype.cache = function() {
   r.connect({}, function(err, conn) {
     if(err) throw err;
     r.db('foodmap').table('establishments').insert(self.data).run(conn, function(err, result) {
-      if(err) throw err;
+      if(err) {
+        console.log("%s was not cached: %s", self.id, err);
+      } else {
+        console.log("%s cached sucessfully.", self.id);
+      }
       conn.close();
     });
   });

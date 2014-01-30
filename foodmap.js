@@ -1,5 +1,18 @@
 var express = require('express');
 var app = express();
+var argv = require('optimist').argv;
+
+var port = 8080;
+var host = "127.0.0.1";
+
+if(argv.port) {
+  port = argv.port;
+}
+
+if(argv.host) {
+  host = argv.host;
+}
+
 app.configure(function() {
   app.use('/', express.static(__dirname + '/public'));
   app.use(express.static(__dirname + '/public'));
@@ -24,7 +37,7 @@ app.get("/data", function(req, res) {
       cursor.each(function(err, result) {
         if(result != undefined) arr.push(result);
         if(!cursor.hasNext()) {
-          var str = JSON.stringify(arr) + '\n';
+          var str = JSON.stringify(arr, null, ' ') + ' \n';
           res.writeHead(200, {'Content-Type': 'application/json',
                               'Content-Length': str.length});
           res.end(str);
@@ -34,6 +47,5 @@ app.get("/data", function(req, res) {
     conn.close();
   });
 })
-app.listen(8000, '127.0.0.1');
-
-
+app.listen(port, host);
+console.log("Food Hygiene server running on %s:%d", host, port);
