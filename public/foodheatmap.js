@@ -1,12 +1,13 @@
-var map, pointarray, heatmap;
+var map, pointarray, goodHeatmap, badHeatmap;
 var first = true;
 
-var establishments = [
-];
+var establishments = [];
+
+var badEstablishments = [];
 
 function initialize() {
   doUpdate();
-  window.setInterval(doUpdate, 5000);
+  window.setInterval(doUpdate, 60 * 1000);
 }
 
 function doUpdate() {
@@ -14,7 +15,11 @@ function doUpdate() {
   $.get('/data/', function(data) {
     console.log("GET /data");
     data.forEach(function(elem) {
-      establishments.push(new google.maps.LatLng(elem.geocode.latitude, elem.geocode.longitude));
+      if(elem.RatingValue == 5) {
+        establishments.push(new google.maps.LatLng(elem.geocode.latitude, elem.geocode.longitude));
+      } else if(elem.RatingValue == 1) {
+        badEstablishments.push(new google.maps.LatLng(elem.geocode.latitude, elem.geocode.longitude));
+      }
     });
     update();
   }).fail(function(req, errStr, err) {
@@ -42,7 +47,7 @@ function update() {
     var midLon = minLon + ((maxLon - minLon)/2);
 
     var mapOptions = {
-      zoom: 5,
+      zoom: 8,
       center: new google.maps.LatLng(midLon, midLat),
     };
 
@@ -52,16 +57,52 @@ function update() {
 
     var pointArray = new google.maps.MVCArray(establishments);
 
-    heatmap = new google.maps.visualization.HeatmapLayer({
-      data: pointArray
-    });
-    heatmap.set('opacity', 1.);
-    heatmap.set('radius', 20);
+    var gradient = [ 'rgba(0,0,0,0)', 
+'rgba(0,255,0,0.00001)',
+'rgba(0,255,0,0.001)',
+'rgba(0,255,0,0.1)',
+'rgba(0,255,0,0.4)',
+'rgba(0,255,0,0.65)',
+'rgba(0,255,0,0.8)',
+'rgba(0,255,0,0.9)',
+'rgba(0,255,0,0.95)',
+'rgba(0,255,0,0.98)',
+'rgba(0,255,0,0.99)',
+'rgba(0,255,0,1)'
+];
 
-    heatmap.setMap(map);
+    var badGradient = [ 'rgba(0,0,0,0)', 
+'rgba(255,0,0,0.00001)',
+'rgba(255,0,0,0.001)',
+'rgba(255,0,0,0.1)',
+'rgba(255,0,0,0.4)',
+'rgba(255,0,0,0.65)',
+'rgba(255,0,0,0.8)',
+'rgba(255,0,0,0.9)',
+'rgba(255,0,0,0.95)',
+'rgba(255,0,0,0.98)',
+'rgba(255,0,0,0.99)',
+'rgba(255,0,0,1)'];
+
+    badHeatmap = new google.maps.visualization.HeatmapLayer({
+      data: new google.maps.MVCArray(badEstablishments),
+      opacity: 0.5,
+      radius: 0.25,
+      dissipating: false,
+      gradient: badGradient,
+      map: map
+    });
+    goodHeatmap = new google.maps.visualization.HeatmapLayer({
+      data: pointArray,
+      opacity: 0.5,
+      radius: 0.25,
+      dissipating: false,
+      gradient: gradient,
+      map: map
+    });
   } else {
-    var pointArray = new google.maps.MVCArray(establishments);
-    heatmap.setData(pointArray);
+    badHeatmap.setData(new google.maps.MVCArray(badEstablishments));
+    goodHeatmap.setData(new google.maps.MVCArray(establishments));
   }
 }
 
