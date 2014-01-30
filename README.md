@@ -26,7 +26,7 @@ $ npm install
 
 To run this application you will need to make sure rethinkdb is running
 somewhere. An example configuration file is shown in
-`rethinkdb.conf.example`.
+[`rethinkdb.conf.example`](rethinkdb.conf.example).
 
 ```sh
 $ rethinkdb --config-file rethinkdb.conf
